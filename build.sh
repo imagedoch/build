@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ref: https://github.com/AlexanderOMara/wireguard-go-builds/blob/master/build.sh
+# ref: https://github.com/imagedoch/build/blob/main/build.sh
 
 set -e
 set -u
